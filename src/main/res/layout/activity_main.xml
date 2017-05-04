@@ -1,0 +1,36 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                xmlns:tools="http://schemas.android.com/tools"
+              android:orientation="vertical"
+              android:gravity="center_horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" >
+
+    <Button
+        android:id="@+id/RecordStartButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAllCaps="false"
+        android:text="@string/RecordStartButton" />
+
+    <Button
+        android:id="@+id/RecordStopButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAllCaps="false"
+        android:text="@string/RecordStopButton" />
+
+    <Button
+        android:id="@+id/RecordCutButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAllCaps="false"
+        android:text="@string/RecordCutButton" />
+
+    <Button
+        android:id="@+id/playBackgroundMusic"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAllCaps="false"
+        android:text="播放背景音乐" />
+
+</LinearLayout>
