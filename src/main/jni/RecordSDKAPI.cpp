@@ -65,6 +65,13 @@ JNIEXPORT jint Java_com_cl_slack_mixaudio_AudioMixerNative_PcmMixEncoderInit
     return iRet;
 }
 
+JNIEXPORT jint Java_com_cl_slack_mixaudio_AudioMixerNative_PcmMixEncoderInitWithParams
+        (JNIEnv *, jobject, jint iSampleRate, jint iChannelNumber){
+    jint iRet = (jint)PcmMixEncoderInitWithParams(iSampleRate, iChannelNumber);
+    LOGI("PcmMixEncoderInit return %d", iRet);
+    return iRet;
+}
+
 /*
  * Class:     com_example_com_kaolafm_recordsdk_RecordSDKAPI
  * Method:    PcmMixEncoderDeInit
@@ -268,7 +275,7 @@ JNIEXPORT void Java_com_cl_slack_mixaudio_AudioMixerNative_addMusicPcmQueue
 }
 
 JNIEXPORT void Java_com_cl_slack_mixaudio_AudioMixerNative_addMicPcmQueue
-		(JNIEnv *env, jobject obj, jbyteArray PcmArray){
+		(JNIEnv *env, jobject obj, jint iSampleRate, jint iChannelNumber, jbyteArray PcmArray){
 	jbyte * arrayBody = 0;
 	jsize theArrayLengthJ = 0;
 
@@ -279,11 +286,48 @@ JNIEXPORT void Java_com_cl_slack_mixaudio_AudioMixerNative_addMicPcmQueue
 	int iLen = (int)theArrayLengthJ;
 
 	LOGI("MicPcmEncode PCM length=%d, pData=0x%08x", theArrayLengthJ, (unsigned long)pData);
-	addMicPcmQueue(pData, iLen);
+	addMicPcmQueue(iSampleRate, iChannelNumber, pData, iLen);
 
 	env->ReleaseByteArrayElements(PcmArray, arrayBody, 0);
 	LOGI("addMicPcmQueue...");
 
+}
+
+JNIEXPORT jbyteArray JNICALL
+Java_com_cl_slack_mixaudio_AudioMixerNative_mixTwoPcmFlush(JNIEnv *env, jobject instance,
+														   jint iSampleRate1, jint iChannelNumber1,
+														   jbyteArray pData1_, jint iSampleRate2,
+														   jint iChannelNumber2,
+														   jbyteArray pData2_) {
+	LOGI("mixTwoPcmFlush is called...");
+	jbyte *pData1 = env->GetByteArrayElements(pData1_, NULL);
+	jbyte *pData2 = env->GetByteArrayElements(pData2_, NULL);
+
+    jsize length1 = env->GetArrayLength(pData1_);;
+    jsize length2 = env->GetArrayLength(pData2_);;
+
+    char* p1 = (char*)pData1;
+    char* p2 = (char*)pData2;
+    int iLen1 = (int)length1;
+    int iLen2 = (int)length2;
+
+    char* pAacBuffer = (char*)0;
+
+    LOGI("mixTwoPcmFlush PCM length=%d, pData=0x%08x , music length=%d, pData=0x%08x ", length1, (unsigned long)p1, length2, (unsigned long)p2);
+    int iAACLen = DoublePcmMixEncode(iSampleRate1, iChannelNumber1, p1, iLen1, iSampleRate2, iChannelNumber2, p2, iLen2, &pAacBuffer);
+    if((iAACLen <= 0) || (pAacBuffer == (char*)0)){
+        LOGI("MicPcmEncode return length=%d, pData=0x%08x", iAACLen, (unsigned long)pAacBuffer);
+        env->ReleaseByteArrayElements(pData1_, pData1, 0);
+        env->ReleaseByteArrayElements(pData2_, pData2, 0);
+        return 0;
+    }
+    LOGI("MicPcmEncode AAC length=%d", iAACLen);
+    jbyteArray retAACArray =env->NewByteArray(iAACLen);
+    env->SetByteArrayRegion(retAACArray, 0, iAACLen, (jbyte*)pAacBuffer);
+
+    if(pAacBuffer) free(pAacBuffer);
+
+    return retAACArray;
 }
 
 JNIEXPORT void JNICALL

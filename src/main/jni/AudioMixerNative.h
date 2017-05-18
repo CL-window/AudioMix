@@ -16,6 +16,9 @@ extern "C" {
 JNIEXPORT jint Java_com_cl_slack_mixaudio_AudioMixerNative_PcmMixEncoderInit
   (JNIEnv *, jobject);
 
+JNIEXPORT jint Java_com_cl_slack_mixaudio_AudioMixerNative_PcmMixEncoderInitWithParams
+        (JNIEnv *, jobject, jint, jint);
+
 /*
  * Class:     com_kaolafm_record_AudioMixerNative
  * Method:    PcmMixEncoderDeInit
@@ -94,7 +97,16 @@ Java_com_cl_slack_mixaudio_AudioMixerNative_addMusicPcmQueue(JNIEnv *env, jobjec
                                                              jbyteArray pData_);
 
 JNIEXPORT void JNICALL
-Java_com_cl_slack_mixaudio_AudioMixerNative_addMicPcmQueue(JNIEnv *env, jobject instance,jbyteArray pData_);
+Java_com_cl_slack_mixaudio_AudioMixerNative_addMicPcmQueue(JNIEnv *env, jobject instance,
+                                                           jint iSampleRate, jint iChannelNumber,
+                                                           jbyteArray pData_);
+
+JNIEXPORT jbyteArray JNICALL
+Java_com_cl_slack_mixaudio_AudioMixerNative_mixTwoPcmFlush(JNIEnv *env, jobject instance,
+                                                           jint iSampleRate1, jint iChannelNumber1,
+                                                           jbyteArray pData1_, jint iSampleRate2,
+                                                           jint iChannelNumber2,
+                                                           jbyteArray pData2_);
 
 JNIEXPORT void JNICALL
 Java_com_cl_slack_mixaudio_AudioMixerNative_clearQueue(JNIEnv *env, jobject instance);

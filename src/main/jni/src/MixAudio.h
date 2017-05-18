@@ -44,18 +44,21 @@ unsigned long PcmGetCurrentLength(void* pHandle);
 void PcmQueueDeInit(void* pHandle);
 
 int PcmMixEncoderInit();
+int PcmMixEncoderInitWithParams(int iSampleRate, int iChannelNumber);
 void PcmMixEncoderDeInit();
 int MusicPcmMixEncode(int iSampleRate, int iChannelNumber, char* pData, int iLen, char** ppAacBuffer);
 int MicPcmMixEncode(int iSampleRate, int iChannelNumber, char* pData, int iLen, char** ppAacBuffer);
 int MusicPcmEncode(int iSampleRate, int iChannelNumber, char* pData, int iLen, char** ppAacBuffer);
 int MicPcmEncode(int iSampleRate, int iChannelNumber, char* pData, int iLen, char** ppAacBuffer);
 int PcmMixFlush(char** ppAacBuffer);
+int DoublePcmMixEncode(int iSampleRate1, int iChannelNumber1, char* pData1, int iLen1,
+                       int iSampleRate2, int iChannelNumber2, char* pData2, int iLen2, char** ppAacBuffer);
 
 void SetMusicGain(float fMusicGain);
 void SetMicGain(float fMicGain);
 
 unsigned long addMusicPcmQueue(int iSampleRate, int iChannelNumber, char* pData, int iLen);
-unsigned long addMicPcmQueue( char* pData, int iLen);
+unsigned long addMicPcmQueue(int iSampleRate, int iChannelNumber, char* pData, int iLen);
 void clearQueue();
 
 #ifdef __cplusplus
