@@ -20,3 +20,9 @@ channelCount 关键
 5.MediaCodecEncoder queueInputBuffer (编码 4 混合好的数据)
 6.MediaCodecEncoder dequeueOutputBuffer 获取 5 编码出来的数据   [使用视频原始时间戳]
 7.通知 MediaMuxer 写入一帧音频
+
+注：仅供参考： AudioMixDecoder.class 实现了上面的流程（2，3，4，5，6）
+使用：
+mAudioMixDecoder.mixOneAudioFrameIfNeed(mExtractor, mMediaFrame);
+混合：com.cl.slack.mixaudio.AudioMixerNative.mixTwoPcmFlush
+mAudioMixDecoder.decodeRemainAudio();
