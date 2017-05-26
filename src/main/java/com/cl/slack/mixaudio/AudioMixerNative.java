@@ -2,9 +2,18 @@ package com.cl.slack.mixaudio;
 
 //javah -classpath bin/classes -d jni com.kaolafm.record.AudioMixerNative
 
+/**
+ * 后期处理视频编辑背景音乐思路：
+ * 1.背景音乐解码，
+ * 2.视频解码，获取音频部分
+ * 如何同步，
+ */
 public class AudioMixerNative {
     // init pcm mix encoder
 	public native int PcmMixEncoderInit();
+
+    public native int PcmMixEncoderInitWithParams(int iSampleRate, int iChannelNumber);
+
     // destroy pcm mix encoder
 	public native void PcmMixEncoderDeInit();
 
@@ -37,12 +46,21 @@ public class AudioMixerNative {
     /**
      * 新增 输入 背景音乐 添加到处理队列
      */
-    public native void addMusicPcmQueue(int iSampleRate, int iChannelNumber,byte[] pData);
+    public native void addMusicPcmQueue(int iSampleRate, int iChannelNumber, byte[] pData);
 
     /**
      * 新增 输入 mic 数据 返回编码数据
      */
-    public native void addMicPcmQueue(byte[] pData);
+    public native void addMicPcmQueue(int iSampleRate, int iChannelNumber, byte[] pData);
+
+    /**
+     * 混合 两个 音频 片段
+     * 视频原音 ， 背景音乐
+     * 直接一帧一帧 的混合
+     */
+    public native byte[]  mixTwoPcmFlush(int iSampleRate1, int iChannelNumber1, byte[] pData1, int iSampleRate2, int iChannelNumber2,byte[] pData2);
+
+    public native byte[]  mixTwoPcmFlushWithDefault(int defautlSamplerate, int defaultChannelCount, int iSampleRate1, int iChannelNumber1, byte[] pData1, int iSampleRate2, int iChannelNumber2,byte[] pData2);
 
     public native void clearQueue();
 

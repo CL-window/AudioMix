@@ -108,6 +108,14 @@ Java_com_cl_slack_mixaudio_AudioMixerNative_mixTwoPcmFlush(JNIEnv *env, jobject 
                                                            jint iChannelNumber2,
                                                            jbyteArray pData2_);
 
+JNIEXPORT jbyteArray JNICALL
+Java_com_cl_slack_mixaudio_AudioMixerNative_mixTwoPcmFlushWithDefault(JNIEnv *env, jobject instance,
+                                                                      jint iSampleRate, jint iChannelNumber,
+                                                                       jint iSampleRate1, jint iChannelNumber1,
+                                                                       jbyteArray pData1_, jint iSampleRate2,
+                                                                       jint iChannelNumber2,
+                                                                       jbyteArray pData2_);
+
 JNIEXPORT void JNICALL
 Java_com_cl_slack_mixaudio_AudioMixerNative_clearQueue(JNIEnv *env, jobject instance);
 

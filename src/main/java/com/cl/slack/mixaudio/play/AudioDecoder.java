@@ -120,6 +120,9 @@ public class AudioDecoder {
             for (int i = 0; i < mediaExtractor.getTrackCount(); i++) {//遍历媒体轨道 此处我们传入的是音频文件，所以也就只有一条轨道
                 mMediaFormat = mediaExtractor.getTrackFormat(i);
                 String mime = mMediaFormat.getString(MediaFormat.KEY_MIME);
+                int sampleRate = mMediaFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
+                // 声道个数：单声道或双声道
+                int channels = mMediaFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT);
                 if (mime.startsWith("audio/")) {//获取音频轨道
 //                    format.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 200 * 1024);
                     mediaExtractor.selectTrack(i);//选择此音频轨道

@@ -12,6 +12,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 
+import com.cl.slack.mixaudio.play.AudioDecoder;
 import com.cl.slack.mixaudio.play.PlayBackMusic;
 
 import java.io.File;
@@ -27,6 +28,7 @@ public class MainActivity extends Activity {
     private Button _RecordCutButton;
     private AudioRecord _AudioRecorder = null;
     private final int _iSampleRateDef = 32000;
+    private final int _iChannelCount = AudioFormat.ENCODING_PCM_16BIT;
     private final int _iBitRate = 16000;
     private int _iRecorderBufferSize;
     private byte[] _RecorderBuffer;
@@ -43,13 +45,17 @@ public class MainActivity extends Activity {
     private int musicSampleRate;
     private int musicChannelNumber;
 
+    private Button mixAudioInVideo;
+    private AudioDecoder mAudioDecoder1;
+    private AudioDecoder mAudioDecoder2;
 
     private int AudioMixInit() {
         int iRet = 0;
         _AudioMix = new AudioMixerNative();
-        iRet = _AudioMix.PcmMixEncoderInit();
-        _AudioMix.MicGain(1.0f);
-        _AudioMix.MusicGain(1.0f);
+//        iRet = _AudioMix.PcmMixEncoderInit();
+        iRet = _AudioMix.PcmMixEncoderInitWithParams(44100,_iChannelCount);
+        _AudioMix.MicGain(1f);
+        _AudioMix.MusicGain(1f);
         Log.i(LOGMODULE, "PcmMixEncoderInit return " + iRet + "....");
 
         return iRet;
@@ -59,6 +65,8 @@ public class MainActivity extends Activity {
         _RecordStartButton = (Button) findViewById(R.id.RecordStartButton);
         _RecordStopButton = (Button) findViewById(R.id.RecordStopButton);
         _RecordCutButton = (Button) findViewById(R.id.RecordCutButton);
+        mixAudioInVideo = (Button) findViewById(R.id.mixAudioInVideo);
+
         _mbStop = true;
 
         _RecordStartButton.setOnClickListener(new View.OnClickListener() {
@@ -81,6 +89,9 @@ public class MainActivity extends Activity {
                 playBackMusic.setNeedRecodeDataEnable(false);
                 _mbStop = true;
                 _AudioRecorder.stop();
+                // 读取最后一次数据 最好在线程里执行
+                readMicDateOnce();
+                _AudioMix.clearQueue();
                 closeFileOutputStream();
             }
         });
@@ -122,7 +133,61 @@ public class MainActivity extends Activity {
             }
         });
 
+        // 两个音频混合
+        mixAudioInVideo.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (mixAudioInVideo.getTag() == null) {
+                    mixAudioInVideo.setTag(this);
+                    mixAudioInVideo.setText("停止混合");
+                    initFileOutputStream();
+                    startMixHandler();
+                } else {
+                    mixAudioInVideo.setTag(null);
+                    mixAudioInVideo.setText("混合两个音乐");
+                    mHandler.removeCallbacks(mixTask);
+                    closeFileOutputStream();
+                }
+            }
+        });
+
     }
+
+    private Handler mHandler = new Handler();
+    private void startMixHandler() {
+        mAudioDecoder1.startPcmExtractor();
+        mAudioDecoder2.startPcmExtractor();
+        mHandler.post(mixTask);
+    }
+
+    private Runnable mixTask = new Runnable() {
+        @Override
+        public void run() {
+            byte[] src1 = mAudioDecoder1.getPCMData();
+            byte[] src2 = mAudioDecoder2.getPCMData();
+
+            byte[] result = null;
+
+            if(src1 != null && src2 != null){
+//                result = _AudioMix.mixTwoPcmFlush(mAudioDecoder1.getSampleRate(), mAudioDecoder1.getChannelNumber(),src1,
+//                        mAudioDecoder2.getSampleRate(), mAudioDecoder2.getChannelNumber(), src2);
+                result = _AudioMix.mixTwoPcmFlush(
+                        mAudioDecoder2.getSampleRate(), mAudioDecoder2.getChannelNumber(), src2,
+                        mAudioDecoder1.getSampleRate(), mAudioDecoder1.getChannelNumber(),src1);
+            }
+
+            if (result != null) {
+                Log.i(LOGMODULE, "write to file..." + playBackMusic.isPlayingMusic());
+                try {
+                    aacDataOutStream.write(result);
+                } catch (IOException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+            }
+            mHandler.postDelayed(mixTask,50);
+        }
+    };
 
     private void initFileOutputStream(){
         String strPath = Environment.getExternalStorageDirectory().getPath();
@@ -139,9 +204,9 @@ public class MainActivity extends Activity {
     }
 
     private void closeFileOutputStream(){
-        _AudioMix.clearQueue();
         try {
             aacDataOutStream.close();
+            Log.i("slack","file out put stream finish");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -181,7 +246,7 @@ public class MainActivity extends Activity {
                 AudioFormat.ENCODING_PCM_16BIT);
         _AudioRecorder = new AudioRecord(AudioSource.MIC,
                 _iSampleRateDef, AudioFormat.CHANNEL_CONFIGURATION_STEREO,
-                AudioFormat.ENCODING_PCM_16BIT, _iRecorderBufferSize);
+                _iChannelCount, _iRecorderBufferSize);
         _RecorderBuffer = new byte[_iRecorderBufferSize];
 
         _ProcessingThread = new HandlerThread("AudioProcessing");
@@ -192,10 +257,12 @@ public class MainActivity extends Activity {
         _FramePeriod = _iRecorderBufferSize / (_iBitRate * iChannelNum / 8);
         _AudioRecorder.setRecordPositionUpdateListener(updateListener, _AudioHandler);
         _AudioRecorder.setPositionNotificationPeriod(_FramePeriod);
-
         this.SetButtonEvent();
         this.AudioMixInit();
-        playBackMusic = new PlayBackMusic(Environment.getExternalStorageDirectory().getAbsolutePath() + "/test.mp3");
+        String mp3 = Environment.getExternalStorageDirectory().getAbsolutePath() + "/test.mp3";
+        playBackMusic = new PlayBackMusic(mp3);
+        mAudioDecoder1 = new AudioDecoder(mp3);
+        mAudioDecoder2 = new AudioDecoder(Environment.getExternalStorageDirectory().getAbsolutePath() + "/test_music2.mp3");
 
     }
 
@@ -208,27 +275,7 @@ public class MainActivity extends Activity {
                     if (_mbStop) {
                         return;
                     }
-                    int iPCMLen = _AudioRecorder.read(_RecorderBuffer, 0, _RecorderBuffer.length); // Fill buffer
-                    if (iPCMLen != _AudioRecorder.ERROR_BAD_VALUE) {
-                        byte[] result ;
-                        if(playBackMusic.isPlayingMusic()){
-                            result = _AudioMix.MicPcmMixEncode(_iSampleRateDef, 2,
-                                    _RecorderBuffer, iPCMLen);
-                        }else {
-                            /** only mic data code is ok */
-                            result = _AudioMix.MicPcmEncode(_iSampleRateDef, 2,
-                                    _RecorderBuffer, iPCMLen);
-                        }
-                        if (result != null) {
-                            Log.i(LOGMODULE, "write to file..." + playBackMusic.isPlayingMusic());
-                            try {
-                                aacDataOutStream.write(result);
-                            } catch (IOException e) {
-                                // TODO Auto-generated catch block
-                                e.printStackTrace();
-                            }
-                        }
-                    }
+                    readMicDateOnce();
 
                 }
 
@@ -238,6 +285,34 @@ public class MainActivity extends Activity {
 
                 }
             };
+
+    private void readMicDateOnce() {
+        int iPCMLen = _AudioRecorder.read(_RecorderBuffer, 0, _RecorderBuffer.length); // Fill buffer
+        if (iPCMLen != _AudioRecorder.ERROR_BAD_VALUE) {
+            byte[] result ;
+//            byte[] music = playBackMusic.getBackGroundBytes();
+//            if(playBackMusic.isPlayingMusic() && music != null && music.length > 0){
+
+            if(playBackMusic.isPlayingMusic()){
+                result = _AudioMix.MicPcmMixEncode(_iSampleRateDef, 2,
+                        _RecorderBuffer, iPCMLen);
+
+            }else {
+                /** only mic data code is ok */
+                result = _AudioMix.MicPcmEncode(_iSampleRateDef, 2,
+                        _RecorderBuffer, iPCMLen);
+            }
+            if (result != null) {
+                Log.i(LOGMODULE, "write to file..." + playBackMusic.isPlayingMusic());
+                try {
+                    aacDataOutStream.write(result);
+                } catch (IOException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
 
     @Override
     protected void onDestroy() {

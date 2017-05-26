@@ -12,8 +12,8 @@
 extern "C" {
 #endif /* __cplusplus */
 
-#define PCM_ENCODER_SAMPLERATE_DEFAULT 32000
-#define PCM_ENCODER_CHANNELNUM_DEFAULT 2
+#define PCM_ENCODER_SAMPLERATE_DEFAULT 44100
+#define PCM_ENCODER_CHANNELNUM_DEFAULT 1
 
 int MixAudio(int iChannelNum, short* sourceData1, short* sourceData2, float fBackgroundGain, float fWordsGain, short *outputData);
 
@@ -52,6 +52,9 @@ int MusicPcmEncode(int iSampleRate, int iChannelNumber, char* pData, int iLen, c
 int MicPcmEncode(int iSampleRate, int iChannelNumber, char* pData, int iLen, char** ppAacBuffer);
 int PcmMixFlush(char** ppAacBuffer);
 int DoublePcmMixEncode(int iSampleRate1, int iChannelNumber1, char* pData1, int iLen1,
+                       int iSampleRate2, int iChannelNumber2, char* pData2, int iLen2, char** ppAacBuffer);
+int DoublePcmMixEncodeWithDefault(int defaultSampleRate, int defaultChannelNumber,
+                       int iSampleRate1, int iChannelNumber1, char* pData1, int iLen1,
                        int iSampleRate2, int iChannelNumber2, char* pData2, int iLen2, char** ppAacBuffer);
 
 void SetMusicGain(float fMusicGain);

@@ -41,6 +41,9 @@ static float s_fMicGain   = 2.5;
 //static int s_iMicSampleRate = 0;
 //static int s_iMicChannelNumber = 0;
 
+unsigned long addPcmQueue(void* pHandle, int defaultSample, int defaultChannel,
+                          int iSampleRate, int iChannelNumber, char* pData, int iLen);
+
 int AudioGain(int iChannelNum, short* audioData, float fGain, short* outputData){
     if (iChannelNum <= 0) {
         return -1;
@@ -544,7 +547,6 @@ int PcmMixFlush(char** ppAacBuffer){
         char* pMicData   = NULL;
         ulMusicLen = PcmQueueRead(s_pMusicPcmQueue, &pMusicData);
         ulMicLen   = PcmQueueRead(s_pMicPcmQueue, &pMicData);
-        
         if ((ulMusicLen == s_ulSampleInputSize*sizeof(short)) && (ulMicLen == s_ulSampleInputSize*sizeof(short))){
             short* pMusicUnit = (short*)pMusicData;
             short* pMicUnit   = (short*)pMicData;
@@ -619,41 +621,23 @@ int PcmMixFlush(char** ppAacBuffer){
 int DoublePcmMixEncode(int iSampleRate1, int iChannelNumber1, char* pData1, int iLen1,
                        int iSampleRate2, int iChannelNumber2, char* pData2, int iLen2, char** ppAacBuffer){
 
+    return DoublePcmMixEncodeWithDefault(PCM_ENCODER_SAMPLERATE_DEFAULT, PCM_ENCODER_CHANNELNUM_DEFAULT,
+                              iSampleRate1, iChannelNumber1, pData1,
+                              iLen1, iSampleRate2, iChannelNumber2, pData2, iLen2, ppAacBuffer);
+}
+
+int DoublePcmMixEncodeWithDefault(int defaultSampleRate, int defaultChannelNumber,
+                                  int iSampleRate1, int iChannelNumber1, char* pData1, int iLen1,
+                                  int iSampleRate2, int iChannelNumber2, char* pData2, int iLen2,
+                                  char** ppAacBuffer){
+
     int iRet = 0;
 
-    void* pPcmResample = NULL;
-    unsigned char* pNewData1 = NULL;
-    unsigned char* pNewData2 = NULL;
-    int iNewLen1 = 0;
-    int iNewLen2 = 0;
-
+    unsigned long ulMicQueueLen = addPcmQueue(s_pMicPcmQueue, defaultSampleRate, defaultChannelNumber,
+                                              iSampleRate1, iChannelNumber1, pData1, iLen1);
+    unsigned long ulMusicQueueLen = addPcmQueue(s_pMusicPcmQueue, defaultSampleRate, defaultChannelNumber,
+                                                iSampleRate2, iChannelNumber2, pData2, iLen2);
     pthread_mutex_lock(&s_EncoderMutex);
-    if ((iSampleRate1 != PCM_ENCODER_SAMPLERATE_DEFAULT) || (iChannelNumber1 != PCM_ENCODER_CHANNELNUM_DEFAULT)) {
-        pNewData1 = (unsigned char*)malloc(PCM_MAX_SIZE);
-        init_PCM_resample(&pPcmResample, PCM_ENCODER_CHANNELNUM_DEFAULT, iChannelNumber1,
-                          PCM_ENCODER_SAMPLERATE_DEFAULT, iSampleRate1);
-
-        iNewLen1 = start_PCM_resample(pPcmResample, iLen1, (unsigned char*)pData1, pNewData1);
-        uninit_PCM_resample(pPcmResample);
-    }else{
-        pNewData1 = (unsigned char*)pData1;
-        iNewLen1 = iLen1;
-    }
-
-    if ((iSampleRate2 != PCM_ENCODER_SAMPLERATE_DEFAULT) || (iChannelNumber2 != PCM_ENCODER_CHANNELNUM_DEFAULT)) {
-        pNewData2 = (unsigned char*)malloc(PCM_MAX_SIZE);
-        init_PCM_resample(&pPcmResample, PCM_ENCODER_CHANNELNUM_DEFAULT, iChannelNumber2,
-                          PCM_ENCODER_SAMPLERATE_DEFAULT, iSampleRate2);
-
-        iNewLen2 = start_PCM_resample(pPcmResample, iLen2, (unsigned char*)pData2, pNewData2);
-        uninit_PCM_resample(pPcmResample);
-    }else{
-        pNewData2 = (unsigned char*)pData2;
-        iNewLen2 = iLen2;
-    }
-
-    unsigned long ulMicQueueLen = PcmQueueInsert(s_pMicPcmQueue, (char*)pNewData1, iNewLen1);
-    unsigned long ulMusicQueueLen = PcmQueueInsert(s_pMusicPcmQueue, (char*)pNewData2, iNewLen2);
 
     LOGI("DoublePcmMixEncode PCM length=%ld , music length=%ld , size=%ld", ulMicQueueLen,ulMusicQueueLen,s_ulSampleInputSize*sizeof(short));
     if ((ulMusicQueueLen >= s_ulSampleInputSize*sizeof(short)) && (ulMicQueueLen >= s_ulSampleInputSize*sizeof(short))) {
@@ -672,17 +656,21 @@ int DoublePcmMixEncode(int iSampleRate1, int iChannelNumber1, char* pData1, int 
                 MixAudio((int)PCM_ENCODER_CHANNELNUM_DEFAULT, &pMusicUnit[iIndex], &pMicUnit[iIndex], s_fMusicGain, s_fMicGain, &pOutputPcm[iIndex]);
             }
 
-            char* pAacBuffer = (char*)malloc(s_ulSampleInputSize*sizeof(short));
-            int iAacLen = FaacEncode(s_pPcmEncoder, (char*)pOutputPcm, (int)s_ulSampleInputSize*sizeof(short), pAacBuffer);
-            if (iAacLen>0) {
-                *ppAacBuffer = pAacBuffer;
-                iRet = iAacLen;
-            }else{
-                free(pAacBuffer);
-                iRet = 0;
-                *ppAacBuffer = NULL;
-            }
+            *ppAacBuffer = (char*)pOutputPcm;
+            iRet = (int) ulMusicLen;
             free(pOutputPcm);
+
+//            char* pAacBuffer = (char*)malloc(s_ulSampleInputSize*sizeof(short));
+//            int iAacLen = FaacEncode(s_pPcmEncoder, (char*)pOutputPcm, (int)s_ulSampleInputSize*sizeof(short), pAacBuffer);
+//            if (iAacLen>0) {
+//                *ppAacBuffer = pAacBuffer;
+//                iRet = iAacLen;
+//            }else{
+//                free(pAacBuffer);
+//                iRet = 0;
+//                *ppAacBuffer = NULL;
+//            }
+//            free(pOutputPcm);
         }
 
     }
@@ -794,58 +782,45 @@ void SetMicGain(float fMicGain){
 }
 
 unsigned long addMusicPcmQueue(int iSampleRate, int iChannelNumber, char* pData, int iLen){
-
-    void* pPcmResample = NULL;
-    unsigned char* pNewData = NULL;
-    int iNewLen = 0;
-
-    pthread_mutex_lock(&s_EncoderMutex);
-    if ((iSampleRate != PCM_ENCODER_SAMPLERATE_DEFAULT) || (iChannelNumber != PCM_ENCODER_CHANNELNUM_DEFAULT)) {
-        pNewData = (unsigned char*)malloc(PCM_MAX_SIZE);
-        init_PCM_resample(&pPcmResample, PCM_ENCODER_CHANNELNUM_DEFAULT, iChannelNumber,
-                          PCM_ENCODER_SAMPLERATE_DEFAULT, iSampleRate);
-
-        iNewLen = start_PCM_resample(pPcmResample, iLen, (unsigned char*)pData, pNewData);
-        uninit_PCM_resample(pPcmResample);
-    }else{
-        pNewData = (unsigned char*)pData;
-        iNewLen = iLen;
-    }
-
-    unsigned long length = PcmQueueInsert(s_pMusicPcmQueue, (char*)pNewData, iNewLen);
-    pthread_mutex_unlock(&s_EncoderMutex);
-
-    return length;
+    return addPcmQueue(s_pMusicPcmQueue, PCM_ENCODER_SAMPLERATE_DEFAULT,
+                       PCM_ENCODER_CHANNELNUM_DEFAULT, iSampleRate, iChannelNumber, pData, iLen);
 }
 
 unsigned long addMicPcmQueue(int iSampleRate, int iChannelNumber, char* pData, int iLen){
-
-    void* pPcmResample = NULL;
-    unsigned char* pNewData = NULL;
-    int iNewLen = 0;
-
-    pthread_mutex_lock(&s_EncoderMutex);
-    if ((iSampleRate != PCM_ENCODER_SAMPLERATE_DEFAULT) || (iChannelNumber != PCM_ENCODER_CHANNELNUM_DEFAULT)) {
-        pNewData = (unsigned char*)malloc(PCM_MAX_SIZE);
-        init_PCM_resample(&pPcmResample, PCM_ENCODER_CHANNELNUM_DEFAULT, iChannelNumber,
-                          PCM_ENCODER_SAMPLERATE_DEFAULT, iSampleRate);
-
-        iNewLen = start_PCM_resample(pPcmResample, iLen, (unsigned char*)pData, pNewData);
-        uninit_PCM_resample(pPcmResample);
-    }else{
-        pNewData = (unsigned char*)pData;
-        iNewLen = iLen;
-    }
-
-    unsigned long length = PcmQueueInsert(s_pMicPcmQueue, (char*)pNewData, iNewLen);
-    pthread_mutex_unlock(&s_EncoderMutex);
-
-    return length;
+    return addPcmQueue(s_pMicPcmQueue, PCM_ENCODER_SAMPLERATE_DEFAULT,
+                       PCM_ENCODER_CHANNELNUM_DEFAULT, iSampleRate, iChannelNumber, pData, iLen);
 }
 
 void clearQueue(){
     PcmQueueClean(s_pMicPcmQueue);
     PcmQueueClean(s_pMusicPcmQueue);
+}
+
+unsigned long addPcmQueue(void* pHandle, int defaultSample, int defaultChannel,
+                          int iSampleRate, int iChannelNumber, char* pData, int iLen){
+
+    void* pPcmResample = NULL;
+    unsigned char* pNewData = NULL;
+    int iNewLen = 0;
+
+    pthread_mutex_lock(&s_EncoderMutex);
+    if ((iSampleRate != defaultSample) || (iChannelNumber != defaultChannel)) {
+        pNewData = (unsigned char*)malloc(PCM_MAX_SIZE);
+        init_PCM_resample(&pPcmResample, defaultChannel, iChannelNumber,
+                          defaultSample, iSampleRate);
+
+        iNewLen = start_PCM_resample(pPcmResample, iLen, (unsigned char*)pData, pNewData);
+        uninit_PCM_resample(pPcmResample);
+    }else{
+        pNewData = (unsigned char*)pData;
+        iNewLen = iLen;
+    }
+
+    unsigned long length = PcmQueueInsert(pHandle, (char*)pNewData, iNewLen);
+    pthread_mutex_unlock(&s_EncoderMutex);
+
+    return length;
+
 }
 
 //void SpeexEcInit(void** ppHandle, int iFramesize, int iFilterlength, int iSamplingrate){
